@@ -64,3 +64,272 @@ Campi principali: status
 seasons
 Chiave primaria: year
 Campi principali: url
+
+
+
+POSSIBIBLE QUEARIES
+1) Piloti che hanno ottenuto almeno una vittoria (position = 1) in un anno
+SELECT DISTINCT d.driverId, d.forename, d.surname
+FROM results r
+JOIN drivers d ON r.driverId = d.driverId
+JOIN races ra ON r.raceId = ra.raceId
+WHERE ra.`year` = ? AND r.position = 1
+
+2) Numero di podi per ogni pilota in un anno
+SELECT d.driverId, d.forename, d.surname, COUNT(*) AS num_podi
+FROM results r
+JOIN drivers d ON r.driverId = d.driverId
+JOIN races ra ON r.raceId = ra.raceId
+WHERE ra.`year` = ? AND r.position BETWEEN 1 AND 3
+GROUP BY d.driverId
+
+
+3) Circuiti in cui un determinato pilota ha vinto in un anno
+SELECT DISTINCT c.name AS circuito
+FROM results r
+JOIN races ra ON r.raceId = ra.raceId
+JOIN circuits c ON ra.circuitId = c.circuitId
+WHERE ra.`year` = ? AND r.driverId = ? AND r.position = 1
+
+4) Gara con il maggior numero di partecipanti in un anno
+SELECT ra.name, ra.date, COUNT(*) AS num_partecipanti
+FROM results r
+JOIN races ra ON r.raceId = ra.raceId
+WHERE ra.`year` = ? AND r.position IS NOT NULL
+GROUP BY ra.raceId
+ORDER BY num_partecipanti DESC
+LIMIT 1
+
+5) Migliore posizione media per i piloti in un anno
+SELECT d.driverId, d.forename, d.surname, AVG(r.position) AS posizione_media
+FROM results r
+JOIN drivers d ON r.driverId = d.driverId
+JOIN races ra ON r.raceId = ra.raceId
+WHERE ra.`year` = ? AND r.position IS NOT NULL
+GROUP BY d.driverId
+ORDER BY posizione_media ASC
+
+
+1) Grafo: Circuiti (nodi), collegati se uno stesso pilota ha vinto in entrambi
+Nodi: Circuiti in cui si è svolta almeno una gara nell’anno.
+Archi: Un arco tra due circuiti esiste se almeno un pilota ha vinto in entrambi i circuiti in quell’anno. Il peso è il numero di piloti che hanno vinto in entrambi.
+
+SELECT DISTINCT c.circuitId, c.name
+FROM races ra
+JOIN circuits c ON ra.circuitId = c.circuitId
+WHERE ra.`year` = ?
+
+SELECT DISTINCT r1.circuitId AS c1, r2.circuitId AS c2, COUNT(DISTINCT r1.driverId) AS weight
+FROM (
+    SELECT ra.circuitId, r.driverId
+    FROM races ra
+    JOIN results r ON ra.raceId = r.raceId
+    WHERE ra.`year` = ? AND r.position = 1
+) r1
+JOIN (
+    SELECT ra.circuitId, r.driverId
+    FROM races ra
+    JOIN results r ON ra.raceId = r.raceId
+    WHERE ra.`year` = ? AND r.position = 1
+) r2 ON r1.driverId = r2.driverId AND r1.circuitId < r2.circuitId
+GROUP BY r1.circuitId, r2.circuitId
+
+
+2) Grafo: Team (costruttori), collegati se hanno schierato almeno un pilota in comune in quell’anno
+Nodi: Tutti i team (constructors) presenti in quell’anno.
+Archi: Esiste un arco se almeno un pilota ha corso per entrambi i team. Il peso è il numero di piloti in comune.
+
+SELECT DISTINCT co.constructorId, co.name
+FROM constructors co
+JOIN constructorResults cr ON co.constructorId = cr.constructorId
+JOIN races ra ON cr.raceId = ra.raceId
+WHERE ra.`year` = ?
+
+SELECT DISTINCT t1.constructorId AS c1, t2.constructorId AS c2, COUNT(DISTINCT t1.driverId) AS weight
+FROM (
+    SELECT cr.constructorId, r.driverId
+    FROM constructorResults cr
+    JOIN results r ON cr.raceId = r.raceId AND cr.raceId = r.raceId
+    JOIN races ra ON cr.raceId = ra.raceId
+    WHERE ra.`year` = ?
+) t1
+JOIN (
+    SELECT cr.constructorId, r.driverId
+    FROM constructorResults cr
+    JOIN results r ON cr.raceId = r.raceId AND cr.raceId = r.raceId
+    JOIN races ra ON cr.raceId = ra.raceId
+    WHERE ra.`year` = ?
+) t2 ON t1.driverId = t2.driverId AND t1.constructorId < t2.constructorId
+GROUP BY t1.constructorId, t2.constructorId
+
+
+3) Grafo: Gare, collegate se lo stesso pilota ha partecipato a entrambe
+Nodi: Gare dell’anno selezionato.
+Archi: Due gare sono collegate se almeno un pilota ha partecipato a entrambe. Peso = numero di piloti in comune.
+
+SELECT ra.raceId, ra.name, ra.date
+FROM races ra
+WHERE ra.`year` = ?
+
+SELECT DISTINCT r1.raceId AS g1, r2.raceId AS g2, COUNT(DISTINCT r1.driverId) AS weight
+FROM results r1
+JOIN results r2 ON r1.driverId = r2.driverId AND r1.raceId < r2.raceId
+JOIN races ra1 ON r1.raceId = ra1.raceId
+JOIN races ra2 ON r2.raceId = ra2.raceId
+WHERE ra1.`year` = ? AND ra2.`year` = ?
+GROUP BY r1.raceId, r2.raceId
+
+
+4) Grafo: Piloti, collegati se si sono confrontati in almeno una gara
+Nodi: Piloti che hanno partecipato almeno a una gara valida nell’anno.
+Archi: Arco orientato da A → B se A ha battuto B in almeno la metà delle gare in cui entrambi hanno partecipato insieme. Peso = numero di gare in cui A ha battuto B.
+
+SELECT DISTINCT d.driverId, d.forename, d.surname
+FROM results r
+JOIN drivers d ON r.driverId = d.driverId
+JOIN races ra ON r.raceId = ra.raceId
+WHERE ra.`year` = ?
+
+SELECT r1.driverId AS p1, r2.driverId AS p2, COUNT(*) AS victories
+FROM results r1
+JOIN results r2 ON r1.raceId = r2.raceId AND r1.driverId <> r2.driverId
+JOIN races ra ON r1.raceId = ra.raceId
+WHERE ra.`year` = ? AND r1.position IS NOT NULL AND r2.position IS NOT NULL AND r1.position < r2.position
+GROUP BY r1.driverId, r2.driverId
+HAVING victories >= (SELECT COUNT(*) / 2
+                     FROM results r3
+                     JOIN results r4 ON r3.raceId = r4.raceId AND r3.driverId = r1.driverId AND r4.driverId = r2.driverId
+                     JOIN races ra3 ON r3.raceId = ra3.raceId
+                     WHERE ra3.`year` = ? AND r3.position IS NOT NULL AND r4.position IS NOT NULL)
+
+
+5) Grafo: Circuiti collegati da piloti che hanno fatto segnare il miglior giro in entrambi
+Nodi: Circuiti che hanno ospitato almeno una gara nell’anno.
+Archi: Due circuiti collegati se lo stesso pilota ha ottenuto il miglior giro in entrambe. Peso = numero di piloti che hanno ottenuto il miglior giro in entrambi i circuiti.
+
+SELECT DISTINCT c.circuitId, c.name
+FROM races ra
+JOIN circuits c ON ra.circuitId = c.circuitId
+WHERE ra.`year` = ?
+
+SELECT DISTINCT r1.circuitId AS c1, r2.circuitId AS c2, COUNT(DISTINCT r1.driverId) AS weight
+FROM (
+    SELECT ra.circuitId, r.driverId
+    FROM results r
+    JOIN races ra ON r.raceId = ra.raceId
+    WHERE ra.`year` = ? AND r.rank = 1
+) r1
+JOIN (
+    SELECT ra.circuitId, r.driverId
+    FROM results r
+    JOIN races ra ON r.raceId = ra.raceId
+    WHERE ra.`year` = ? AND r.rank = 1
+) r2 ON r1.driverId = r2.driverId AND r1.circuitId < r2.circuitId
+GROUP BY r1.circuitId, r2.circuitId
+
+
+6) Grafo: Anni collegati se uno stesso pilota ha vinto in entrambi
+Nodi: Anni in cui si è corsa almeno una gara.
+Archi: Un arco tra due anni esiste se almeno un pilota ha vinto in entrambi. Il peso è il numero di piloti che hanno vinto in entrambi.
+
+
+SELECT DISTINCT `year`
+FROM races
+ORDER BY `year`
+
+SELECT y1.`year` AS y1, y2.`year` AS y2, COUNT(DISTINCT r1.driverId) AS weight
+FROM (
+    SELECT ra.`year`, r.driverId
+    FROM races ra
+    JOIN results r ON ra.raceId = r.raceId
+    WHERE r.position = 1
+) r1
+JOIN (
+    SELECT ra.`year`, r.driverId
+    FROM races ra
+    JOIN results r ON ra.raceId = r.raceId
+    WHERE r.position = 1
+) r2 ON r1.driverId = r2.driverId AND r1.`year` < r2.`year`
+GROUP BY y1, y2
+
+
+7) Grafo: Nazionalità collegate se hanno corso nella stessa gara
+Nodi: Nazionalità dei piloti presenti nel database.
+Archi: Due nazionalità sono collegate se almeno due piloti con quelle nazionalità hanno partecipato alla stessa gara. Il peso è il numero di gare condivise da coppie di piloti di nazionalità diverse.
+
+SELECT DISTINCT nationality
+FROM drivers
+
+SELECT d1.nationality AS n1, d2.nationality AS n2, COUNT(DISTINCT r1.raceId) AS weight
+FROM results r1
+JOIN drivers d1 ON r1.driverId = d1.driverId
+JOIN results r2 ON r1.raceId = r2.raceId
+JOIN drivers d2 ON r2.driverId = d2.driverId
+WHERE d1.nationality < d2.nationality AND d1.driverId <> d2.driverId
+GROUP BY d1.nationality, d2.nationality
+
+
+8) Grafo: Piloti saliti insieme sul podio
+Nodi: Piloti che sono saliti almeno una volta sul podio (posizione ≤ 3).
+Archi: Due piloti sono collegati se sono saliti insieme sul podio almeno una volta. Il peso è il numero di podi condivisi.
+
+SELECT DISTINCT d.driverId, d.forename, d.surname
+FROM drivers d
+JOIN results r ON d.driverId = r.driverId
+WHERE r.position <= 3
+
+SELECT r1.driverId AS p1, r2.driverId AS p2, COUNT(*) AS weight
+FROM results r1
+JOIN results r2 ON r1.raceId = r2.raceId AND r1.driverId < r2.driverId
+WHERE r1.position <= 3 AND r2.position <= 3
+GROUP BY r1.driverId, r2.driverId
+
+
+9) Grafo: Team orientati da sconfitto a vincitore in gara
+Nodi: Team (constructors) che hanno partecipato almeno a una gara.
+Archi: Un arco orientato da A → B esiste se B ha ottenuto una posizione migliore di A nella stessa gara. Il peso è il numero di volte che B ha battuto A.
+
+SELECT DISTINCT constructorId, name
+FROM constructors
+
+SELECT t1.constructorId AS loser, t2.constructorId AS winner, COUNT(*) AS weight
+FROM (
+    SELECT cr.raceId, cr.constructorId, MIN(r.position) AS best_pos
+    FROM constructorResults cr
+    JOIN results r ON cr.raceId = r.raceId AND cr.constructorId = r.constructorId
+    WHERE r.position IS NOT NULL
+    GROUP BY cr.raceId, cr.constructorId
+) t1
+JOIN (
+    SELECT cr.raceId, cr.constructorId, MIN(r.position) AS best_pos
+    FROM constructorResults cr
+    JOIN results r ON cr.raceId = r.raceId AND cr.constructorId = r.constructorId
+    WHERE r.position IS NOT NULL
+    GROUP BY cr.raceId, cr.constructorId
+) t2 ON t1.raceId = t2.raceId AND t1.constructorId <> t2.constructorId AND t1.best_pos > t2.best_pos
+GROUP BY t1.constructorId, t2.constructorId
+
+
+10) Grafo: Circuiti collegati se uno stesso team è salito sul podio in entrambi
+Nodi: Circuiti che hanno ospitato almeno una gara nell’anno selezionato.
+Archi: Due circuiti sono collegati se almeno un team è salito sul podio (posizione ≤ 3) in entrambi. Il peso è il numero di team in comune.
+
+SELECT DISTINCT c.circuitId, c.name
+FROM circuits c
+JOIN races ra ON ra.circuitId = c.circuitId
+WHERE ra.`year` = ?
+
+SELECT r1.circuitId AS c1, r2.circuitId AS c2, COUNT(DISTINCT r1.constructorId) AS weight
+FROM (
+    SELECT ra.circuitId, r.constructorId
+    FROM races ra
+    JOIN results r ON ra.raceId = r.raceId
+    WHERE ra.`year` = ? AND r.position <= 3
+) r1
+JOIN (
+    SELECT ra.circuitId, r.constructorId
+    FROM races ra
+    JOIN results r ON ra.raceId = r.raceId
+    WHERE ra.`year` = ? AND r.position <= 3
+) r2 ON r1.constructorId = r2.constructorId AND r1.circuitId < r2.circuitId
+GROUP BY r1.circuitId, r2.circuitId

@@ -1,0 +1,66 @@
+DESCRIZIONE DATABASE
+
+Descrizione delle tabelle del database
+
+drivers
+Chiave primaria: driverId
+Relazioni: collegata a results, qualifying, driverStandings, lapTimes, pitStops
+Campi principali: driverRef, number, code, forename, surname, dob, nationality, url
+
+races
+Chiave primaria: raceId
+Relazioni: collegata a results, qualifying, lapTimes, pitStops, constructorStandings, driverStandings, constructorResults, circuits (tramite circuitId)
+Campi principali: year, round, circuitId, name, date, time, url
+
+results
+Chiave primaria: resultId
+Relazioni: collegata a races, drivers, constructors, status
+Campi principali: number, grid, position, positionText, positionOrder, points, laps, time, milliseconds, fastestLapTime
+
+constructors
+Chiave primaria: constructorId
+Relazioni: collegata a results, qualifying, constructorResults, constructorStandings
+Campi principali: constructorRef, name, nationality, url
+
+circuits
+Chiave primaria: circuitId
+Relazioni: collegata a races
+Campi principali: circuitRef, name, location, country, lat, lng, alt, url
+
+qualifying
+Chiave primaria: qualifyId
+Relazioni: collegata a races, drivers, constructors
+Campi principali: position, q1, q2, q3
+
+driverStandings
+Chiave primaria: driverStandingsId
+Relazioni: collegata a races, drivers
+Campi principali: points, position, positionText, wins
+
+constructorStandings
+Chiave primaria: constructorStandingsId
+Relazioni: collegata a races, constructors
+Campi principali: points, position, positionText, wins
+
+constructorResults
+Chiave primaria: constructorResultId
+Relazioni: collegata a races, constructors
+Campi principali: points, status
+
+lapTimes
+Chiave primaria composta: (raceId, driverId, lap)
+Relazioni: collegata a races, drivers
+Campi principali: position, time, milliseconds
+
+pitStops
+Chiave primaria composta: (raceId, driverId, stop)
+Relazioni: collegata a races, drivers
+Campi principali: lap, time, duration, milliseconds
+
+status
+Chiave primaria: statusId
+Campi principali: status
+
+seasons
+Chiave primaria: year
+Campi principali: url

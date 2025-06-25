@@ -18,6 +18,26 @@
                 self._graph.add_edge(e[0], e[1], weight=e[2])
 
 
+
+    def buildGraph(self, year, shape):
+        self._graph.clear()
+        self._nodes = DAO.getAllNodes(year, shape)
+
+        for n in self._nodes:
+            self._idMap[n.id] = n
+
+        self._edges = DAO.getAllEdges(year, shape, self._idMap)
+        self._graph.add_nodes_from(self._nodes)
+        self._graph.add_edges_from(self._edges)
+
+        # calcolo degli edges in modo programmatico
+        for i in range(0, len(self._nodes) - 1):
+            for j in range(i + 1, len(self._nodes)):
+                if (self._nodes[i].state == self._nodes[j].state and
+                    self._nodes[i].datetime < self._nodes[j].datetime):
+                    self._graph.add_edge(self._nodes[i], self._nodes[j])
+
+
 //METODO 1 ARCHI -> creo le connessioni che sono generiche non solo dei nodi del grafo
 //per usare questo metodo la idMap deve essere generica 
 // in base alle necessita le connessioni possono includere o meno il peso

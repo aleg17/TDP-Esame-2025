@@ -56,6 +56,29 @@
                     self._graph.add_edge(u, v, weight=peso)
 
 
+    def build_graph(self, ch_min, ch_max):
+        self._graph.clear()
+        nodes = DAO.get_nodes(ch_min, ch_max)
+        self._graph.add_nodes_from(nodes)
+
+        for i in range(len(nodes)-1):
+            for j in range(i+1, len(nodes)):
+                if (self.get_localization_gene(nodes[i]) == self.get_localization_gene(nodes[j]) and
+                        nodes[i].GeneID != nodes[j].GeneID and
+                        (nodes[i].GeneID, nodes[j].GeneID) in self._correlations_map):
+                    peso = self._correlations_map[(nodes[i].GeneID, nodes[j].GeneID)]
+                    if nodes[i].Chromosome < nodes[j].Chromosome:
+                        self._graph.add_edge(nodes[i], nodes[j], weight=peso)
+                    elif nodes[i].Chromosome > nodes[j].Chromosome:
+                        self._graph.add_edge(nodes[j], nodes[i], weight=peso)
+                    else:
+                        self._graph.add_edge(nodes[i], nodes[j], weight=peso)
+                        self._graph.add_edge(nodes[j], nodes[i], weight=peso)
+
+// CREAZIONE DI IdMap AL BISOGNO
+        self._occorrenze_mese = dict.fromkeys(range(1, 13), 0)
+
+
 // CREAZIONE DEGLI EDGES PER GRAFO A MAGLIA COMPLETA
         myedges = list(itertools.combinations(self._allTeams, 2))
         self._grafo.add_edges_from(myedges)
@@ -96,6 +119,17 @@
             migliori[n] = peso
         miglioriOrdinati = sorted(migliori.items(), key=lambda x: x[1], reverse=False)
         return miglioriOrdinati[0]
+
+// TROVA NODO MASSIMO USCENTE
+    def get_node_max_uscenti(self):
+        sorted_nodes = sorted(self._graph.nodes(), key=lambda n: self._graph.out_degree(n), reverse=True)
+        result = []
+        for i in range(min(len(sorted_nodes), 5)):
+            peso_tot = 0.0
+            for e in self._graph.out_edges(sorted_nodes[i], data=True):
+                peso_tot += float(e[2].get("weight"))
+            result.append((sorted_nodes[i], self._graph.out_degree(sorted_nodes[i]), peso_tot))
+        return result
 
 
 //COMPONENTE CONNESSA CONTENENTE UN NODO

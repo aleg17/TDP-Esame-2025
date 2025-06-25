@@ -1,3 +1,84 @@
+// RICORSIONE STANDARD
+  def getBestPath(self):
+        self._soluzione = []
+        self._costoMigliore = 0
+        for n in self._grafo.nodes:
+            if self._grafo.in_degree(n) == 0:
+                parziale = [n]
+        self._ricorsione(parziale)
+        return self._soluzione, self._costoMigliore
+
+    def _ricorsione(self, parziale):
+
+        if self._grafo.out_degree(parziale[-1]) == 0:
+            if len(parziale) > self._costoMigliore:
+                self._soluzione = copy.deepcopy(parziale)
+                self._costoMigliore = len(parziale)
+
+        for n in self._grafo.neighbors(parziale[-1]):
+            if n not in parziale:
+                parziale.append(n)
+                self._ricorsione(parziale)
+                parziale.pop()
+
+// RICORSIONE COMPONENTE CONNESSA
+   def getBestPath(self, canzone_preferita, memoria_massima):
+        componente_connessa = list(nx.node_connected_component(self._grafo, canzone_preferita))
+        parziale = [canzone_preferita]
+        self._ricorsione(parziale, componente_connessa, memoria_massima)
+        return self._soluzione, self._maxCanzoni
+
+    def _ricorsione(self, parziale, componente_connessa, memoria_massima):
+        memoria_utilizzata = self._calcolaMemoria(parziale)
+        if memoria_utilizzata > memoria_massima:
+            return
+
+        if len(parziale) > self._maxCanzoni:
+            self._soluzione = copy.deepcopy(parziale)
+            self._maxCanzoni = len(parziale)
+
+        for canzone in componente_connessa:
+            if canzone not in parziale:
+                parziale.append(canzone)
+                self._ricorsione(parziale, componente_connessa, memoria_massima)
+                parziale.pop()
+    def _calcolaMemoria(self, lista_canzoni):
+        memoria_totale = 0
+        for canzone in lista_canzoni:
+            memoria_totale += canzone.Bytes
+        return memoria_totale
+
+// RICORSIONE PESI CRESCENTI
+
+    def getBest(self, prodotto):
+        parziale = [prodotto]
+        self.ricorsione(parziale)
+        return len(self.solBest)
+
+    def pesoCrescente(self, parziale):
+        peso = 0
+        for par in range(1, len(parziale)):
+            if par == 1:
+                peso = self._grafo[parziale[par - 1]][parziale[par]]['weight']
+            else:
+                if peso > self._grafo[parziale[par - 1]][parziale[par]]['weight']:
+                    return False
+                else:
+                    peso = self._grafo[parziale[par - 1]][parziale[par]]['weight']
+        return True
+
+    def ricorsione(self, parziale):
+        if self.pesoCrescente(parziale) is False and len(parziale) > 1:
+            if len(self.solBest) < len(parziale):
+                self.solBest = copy.deepcopy(parziale)
+        else:
+            for neighbor in self._grafo.neighbors(parziale[-1]):
+                if neighbor not in parziale:
+                    parziale.append(neighbor)
+                    self.ricorsione(parziale)
+                    parziale.pop()
+
+
 //CONTROLLER:
 
   def handle_cerca(self,e):

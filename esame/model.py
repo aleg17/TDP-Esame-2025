@@ -2,36 +2,37 @@
 
     def __init__(self):
         self.grafo = nx.Graph()
+        self._drivers = []
         self._idMap = {}
 
-    def creaGrafo(self,*):
-        self.nodi = DAO.getNodi(*)
-        self.grafo.add_nodes_from(self.nodi)
-        for v in self.nodi:
-            self._idMap[v.id] = v
-         self.addEdges(*)
-        return self.grafo
+    def buildGraph(self, anno):
+        self._graph.clear()
+        self._drivers = DAO.getAllDriversbyYear(anno)
+        for d in self._drivers:
+            self._idMap[d.driverID] = d
 
-    def getNumNodes(self):
-        return len(self.grafo.nodes)
+        self._graph.add_nodes_from(self._drivers)
 
-    def getNumEdges(self):
-        return len(self.grafo.edges)
+        allEdges = DAO.getDriverYearResults(anno, self._idMap)
+        for e in allEdges:
+                self._graph.add_edge(e[0], e[1], weight=e[2])
 
-//NB: sulla base al metodo utilizzato per la creazione degli archi ->  necessario
-// creare una metodo nel DAO che prende tutti gli oggetti di una tipologia
-// su cui poi creare la _idMap  dall'init in quel caso:
-
- def __init__(self):
-        self.allOggetti=DAO.getAllOggetti()
-        self.grafo = nx.Graph()
-        self._idMap = {}
-       for v in self.allOggetti:
-                self._idMap[v.id] = v
 
 //METODO 1 ARCHI -> creo le connessioni che sono generiche non solo dei nodi del grafo
 //per usare questo metodo la idMap deve essere generica 
 // in base alle necessita le connessioni possono includere o meno il peso
+
+    def addEdgesPesati(self):
+        self._grafo.clear_edges()
+        allEdges = DAO.getAllEdges()
+        for edge in allEdges:
+            u = self._idMapFermate[edge.id_stazP]
+            v = self._idMapFermate[edge.id_stazA]
+
+            if self._grafo.has_edge(u, v):
+                self._grafo[u][v]["weight"] += 1
+            else:
+                self._grafo.add_edge(u, v, weight=1)
 
     def addEdges(self, *):
         self.grafo.clear_edges()
@@ -45,101 +46,84 @@
                     self.grafo.add_edge(nodo1, nodo2, weight=peso)
 
 
-//CLASSE CONNESSIONI (NO PESO E VARIARE STR O INT IN BASE AL CASO)
-from dataclasses import dataclass
-
-@dataclass
-class Connessione:
-    v1:int
-    v2:int
-
-
-    def __str__(self):
-        return f"{self.v1} - {self.v2}"
-
 //METODO 2 ARCHI -> itero sui nodi
 
- def addEdges(self, distanza):
-         self.grafo.clear_edges()
-         for nodo1 in self.grafo:
-             for nodo2 in self.grafo:
-                 if nodo1!=nodo2 and self.grafo.has_edge(nodo1, nodo2) == False:
-                    posizione1=(nodo1.Latitude, nodo1.Longitude)
-                    posizione2 = (nodo2.Latitude, nodo2.Longitude)
-                    distanzaCalcolata=geodesic(posizione1,posizione2).kilometers
-                    if distanzaCalcolata<=distanza:
-                        self.grafo.add_edge(nodo1, nodo2, weight=abs(distanzaCalcolata))
-//DATACLASSE TIPO
-from dataclasses import dataclass
-
-@dataclass
-class Stato:
-    id:str
-    Name:str
-    Capital:str
-    Lat:float
-    Lng:float
-    Area:int
-    Population:int
-    Neighbors:str
+    def addEdgesV1(self):
+        for u in self._nodes:
+            for v in self._nodes:
+                peso = DAO.getPeso(u, v)
+                if (peso != None):
+                    self._graph.add_edge(u, v, weight=peso)
 
 
-    def __hash__(self):
-        return hash(self.id)
+// CREAZIONE DEGLI EDGES PER GRAFO A MAGLIA COMPLETA
+        myedges = list(itertools.combinations(self._allTeams, 2))
+        self._grafo.add_edges_from(myedges)
+        salariesOfTeams = DAO.getSalyOfTeams(year, self._idMapTeams)
+        for e in self._grafo.edges:
+            self._grafo[e[0]][e[1]]["weight"] = salariesOfTeams[e[0]] + salariesOfTeams[e[1]]
 
-    def __str__(self):
-        return f"{self.Name}"
+// ORDINA ARCHI
+    def getSortedEdges(self):
+        """Ordina gli archi del grafo in base al peso in ordine decrescente."""
+        return sorted(self._graph.edges(data=True), key=lambda x: x[2]["weight"], reverse=True)
 
-  //ORDINARE LISTA DI TUPLE 
-    ordinaLista=sorted(lista,key=lambda x:x[2], reverse=False)
+// ORDINA NEIGHBORS
+    def getSortedNeighbors(self, node):
+        neighbors = self._graph.neighbors(node) # self._graph[node]
+        neighbTuples = []
+        for n in neighbors:
+            neighbTuples.append((n, self._graph[node][n]["weight"]))
 
-//ORDINARE DIZIONARIO per valore
-    dizioOrdinato= dict(sorted(dizio.items(), key=lambda item: item[1], reverse=True))
+        neighbTuples.sort(key=lambda x: x[1], reverse=True)
+        return neighbTuples
 
-//TAGLIARE LA LISTA
-  listaOrdinata=listaOrdinata[:3]   -> questo codice mi permette di prendere i primi tre
-
-
-//CALCOLO DISTANZA
-// CON IMPORTAZIONE DI import geopy.distance
-
-posizione1 = (nodo1.lat, nodo1.lng)
-posizione2 = (nodo2.lat, nodo2.lng)
-distanzaCalcolata= geopy.distance.distance(posizione1, posizione2).km
-
-//arrotondare a tot cifre
-rount(numero, numeroCifre)
-
-//splittare
-        direttoreid=direttoreStringa.split("-")[0]
-
-//FAR ACCADERE QUALCOSA ALLA SELEZIONE DI UN DD
-        self.dd_anno=ft.Dropdown(label="Anno", on_change=self._controller.getSquadre)
-//NB captando un evento la funzione nel controller va dafinita così:   def getSquadre(self,e): con l'evento e
-
-
-//PREDECESSORI SUCCESSORI E RAGGIUNGIBILI:
-    def analisi(self, stato):
-        prec=[]
-        succ=[]
-        all=[]
-        for nodi in self.grafo.predecessors(stato):
-            prec.append(nodi)
-        for nodi in self.grafo.successors(stato):
-            succ.append(nodi)
-        for nodi in nx.dfs_tree(self.grafo,stato):
-            all.append(nodi)
-        return prec,succ,all
 
 //COMPONENTE CONNESSA CONTENENTE UN NODO
-        nodiConnessi=list(nx.node_connected_component(self.grafo,album)
+        nodiConnessi = list(nx.node_connected_component(self.grafo,album))
+                          
+
+//ORDINARE LISTA DI TUPLE 
+    ordinaLista = sorted(lista,key=lambda x:x[2], reverse=False)
+
+//ORDINARE DIZIONARIO per valore
+    dizioOrdinato = dict(sorted(dizio.items(), key=lambda item: item[1], reverse=True))
+
+
+// CAMMINI
+
+// CAMMINO PIU' LUNGO A PARTIRE DA UN NODO
+    def getDFSNodesFromTree(self, source):
+        tree = nx.dfs_tree(self._graph, source)
+        nodi = list(tree.nodes())
+        return nodi[1:]
+
+    def getCammino(self, sourceStr):
+        source = self._idMap[int(sourceStr)]
+        lp = []
+
+        #for source in self._graph.nodes:
+        tree = nx.dfs_tree(self._graph, source)
+        nodi = list(tree.nodes())
+
+        for node in nodi:
+            tmp = [node]
+
+            while tmp[0] != source:
+                pred = nx.predecessor(tree, source, tmp[0])
+                tmp.insert(0, pred[0])
+
+            if len(tmp) > len(lp):
+                lp = copy.deepcopy(tmp)
+
+        return lp
+
 
 //SE ESISTE IL PERCORSO TRA DUE NODI TROVA IL MINIMO
-                def esistePercorso(self, v0, v1):
+    def esistePercorso(self, v0, v1):
         connessa = nx.node_connected_component(self._grafo, v0)
         if v1 in connessa:
             return True
-
         return False
 
     def trovaCamminoD(self, v0, v1):

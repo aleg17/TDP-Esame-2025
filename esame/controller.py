@@ -1,32 +1,31 @@
 
 //VALIDAZIONE CAMPI:
 
-//dropdown
-porzione=self._view.ddporzione.value
-        if porzione is None:
-            self._view.create_alert("Selezionare un tipo di porzione")
+        dist = self._view._txtDistanza.value
+        if dist is None:
+            self._view.create_alert("Inserire una distanza e un provider")
             return
-        dizio=self._model.analisi(porzione)
+        try:
+            dist_float = float(dist)
+        except ValueError:
+            self._view.create_alert("Inserire un valore valido nel campo distanza")
+            return
+        self._model.buildGraph(self._choiceProvider, dist_float)
+        self._view.txt_result.controls.clear()
+        self._view.txt_result.controls.append(ft.Text("Grafo correttamente creato"))
+        self._view.txt_result.controls.append(ft.Text(f"Numero nodi: {len(self._model._grafo.nodes)}"))
+        self._view.txt_result.controls.append(ft.Text(f"Numero archi: {len(self._model._grafo.edges)}"))
+        self._view.update_page()
 
 //textfield:
-calorie=self._view.txtcalorie.value
-if calorie=="":
-    self._view.create_alert("Inserire un valore numerico per le calorie")
-    return
-grafo = self._model.creaGrafo( int(calorie)) 
+        calorie=self._view.txtcalorie.value
+        if calorie=="":
+            self._view.create_alert("Inserire un valore numerico per le calorie")
+            return
+        grafo = self._model.creaGrafo(int(calorie)) 
 
 //NB: in entrambi i casi il cast del valore (se necessario) va fatto dopo altrimenti da errore
 
-
-/RIMPIRE IL DROPDOWN -> ricordati di chiamare self._controller.fillDD() NELLA VIEW DOPO 
-//DOPO LA CREAZIONE DEL DD
-
-    def fillDD(self):
-        ann="201"
-        for i in range(5,9):
-            anno=ann+str(i)
-            self._view.dd_anno.options.append(ft.dropdown.Option(
-                               text=anno))
 
 //RIEMPIRE IL IL DD DA UNA COLONNA/TABELLA DEL DATABASE
 //NB se nazioni fosse costituita da Oggetti bisogna accertarsi che il metodo

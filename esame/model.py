@@ -78,6 +78,25 @@
         neighbTuples.sort(key=lambda x: x[1], reverse=True)
         return neighbTuples
 
+// DIFFERNZA FRA ARCHI USCENTI ED ENTRANTI
+    def getDifference(self, node):
+        migliori = {}
+        pesoUscenti = 0
+        pesoEntranti = 0
+        peso = 0
+        for n in self._grafo.nodes():
+            peso = 0
+            pesoEntranti = 0
+            pesoUscenti = 0
+            for v in self._grafo.out_edges(n):
+                pesoUscenti += self._grafo[n][v[1]]['weight']
+            for e in self._grafo.in_edges(n):
+                pesoEntranti += self._grafo[e[0]][n]['weight']
+            peso = pesoEntranti - pesoUscenti
+            migliori[n] = peso
+        miglioriOrdinati = sorted(migliori.items(), key=lambda x: x[1], reverse=False)
+        return miglioriOrdinati[0]
+
 
 //COMPONENTE CONNESSA CONTENENTE UN NODO
         nodiConnessi = list(nx.node_connected_component(self.grafo,album))

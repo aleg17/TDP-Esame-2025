@@ -285,3 +285,20 @@
             pesoTot += self.grafo[arco[0]][arco[1]]["weight"]
         return pesoTot
 
+
+// TROVA RAGGIUNGIBILI
+    def getRaggiungibiliRecursive(self, n):
+        visited = []
+        self._recursive_visit(n, visited)
+        visited.remove(n)
+        return visited
+
+    def _recursive_visit(self, n, visited):
+        visited.append(n)
+
+        # Iterate through all neighbors of n
+        for c in self._graph.neighbors(n):
+            # Filter: visit c only if it hasn't been visited yet
+            if c not in visited:
+                self._recursive_visit(c, visited)
+

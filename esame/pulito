@@ -12,6 +12,7 @@ def get_all_years():
     return years
 
 
+
 def get_all_circuits():
     conn = DBConnect.get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -311,6 +312,10 @@ def get_all_circuits():
     cursor.close()
     conn.close()
     return result
+
+SELECT DISTINCT c.*
+FROM circuits c
+JOIN races r ON c.circuitId = r.circuitId
 
 
 def get_results_for_circuit_in_range(circuit_id, year_start, year_end):

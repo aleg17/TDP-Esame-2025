@@ -1,0 +1,27 @@
+Nodi
+Ogni nodo del grafo corrisponde a un circuito dove almeno una volta è stato disputato un Gran Premio di Formula 1 (quindi il grafo ha tutti i circuiti storici, indipendentemente dagli anni selezionati).
+
+Ogni nodo contiene due tipi di informazioni:
+
+Le proprietà del circuito, cioè i dati descrittivi del circuito (come nome, luogo, paese, ecc.) presi dalla tabella circuits.
+
+I risultati delle gare che si sono svolte su quel circuito nel range di anni selezionato dall’utente.
+
+Questi risultati sono salvati in una struttura dati interna al nodo: un dizionario che ha come chiavi gli anni in cui quel circuito ha ospitato gare in quel periodo.
+
+Per ogni anno, nel valore c’è una lista di piazzamenti (cioè chi ha partecipato e la posizione finale di ciascun pilota). Ogni piazzamento è rappresentato da un oggetto o una tupla con:
+
+l’ID del pilota,
+
+la posizione in cui ha tagliato il traguardo (o null se non ha completato la gara).
+
+Archi (Edges)
+Un arco esiste tra due nodi (due circuiti) se e solo se entrambi i circuiti hanno ospitato almeno una gara di Formula 1 nel range di anni selezionato.
+
+Se un circuito non ha avuto gare in quegli anni, il suo nodo rimane isolato (nessun arco lo collega ad altri nodi).
+
+Il peso di ogni arco è dato da una somma:
+
+Si somma il numero totale di piloti che hanno effettivamente tagliato il traguardo nelle gare disputate su ciascuno dei due circuiti nel range considerato.
+
+Solo i piloti con posizione definita (non null) vengono contati, perché solo loro hanno completato la gara (i ritirati o squalificati non vengono considerati).

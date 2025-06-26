@@ -1,0 +1,107 @@
+import networkx as nx
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Optional, List, Tuple
+from database.DAO import DAO  # Presumo che DAO abbia i metodi per accedere al DB
+
+@dataclass
+class RisultatoGara:
+    driver_id: int
+    posizione: Optional[int]  # None se il pilota si è ritirato
+
+@dataclass
+class Circuit:
+    circuitId: int
+    name: str
+    location: str
+    country: str
+    # altri campi se presenti...
+
+    race_results: dict = None  # dict anno -> List[RisultatoGara]
+
+class Model:
+    def __init__(self):
+        self._graph = nx.Graph()  # grafo non orientato semplice e pesato
+        self._circuits_map = {}   # circuitId -> Circuit
+        self._active_circuits = set()
+    
+    def getAvailableYears(self) -> List[int]:
+        """Restituisce tutti gli anni in cui si sono svolte gare."""
+        return DAO.get_all_years()
+    
+    def buildGraph(self, year_start: int, year_end: int):
+        """
+        Costruisce il grafo semplice e pesato:
+        - nodi: tutti i circuiti su cui è mai stato disputato un GP di F1
+        - archi: connessi se entrambi i circuiti hanno ospitato gare nel range selezionato,
+          peso = somma piloti arrivati al traguardo nei due circuiti nel range.
+        """
+        self._graph.clear()
+        self._circuits_map.clear()
+        
+        # 1) Carica tutti i circuiti (nodi)
+        circuits_data = DAO.get_all_circuits()
+        for cdata in circuits_data:
+            c = Circuit(**cdata, race_results=defaultdict(list))
+            self._circuits_map[c.circuitId] = c
+        
+        # 2) Individua circuiti attivi nel range di anni selezionato
+        self._active_circuits = set(DAO.get_circuits_with_race_in_range(year_start, year_end))
+        
+        # 3) Per ogni circuito carica i risultati delle gare nel range
+        for cid in self._circuits_map:
+            piazzamenti = DAO.get_results_for_circuit_in_range(cid, year_start, year_end)
+            race_results_dict = defaultdict(list)
+            for res in piazzamenti:
+                # res = {'year':..., 'driverId':..., 'position':...}
+                risultato = RisultatoGara(driver_id=res['driverId'], posizione=res['position'])
+                race_results_dict[res['year']].append(risultato)
+            self._circuits_map[cid].race_results = race_results_dict
+        
+        # 4) Aggiungi tutti i nodi (tutti i circuiti)
+        self._graph.add_nodes_from(self._circuits_map.keys())
+        
+        # 5) Aggiungi gli archi: solo tra circuiti attivi nel range
+        active_list = list(self._active_circuits)
+        for i in range(len(active_list)):
+            for j in range(i+1, len(active_list)):
+                c1 = active_list[i]
+                c2 = active_list[j]
+                peso = self._calculate_edge_weight(c1, c2, year_start, year_end)
+                if peso > 0:
+                    self._graph.add_edge(c1, c2, weight=peso)
+    
+    def _calculate_edge_weight(self, c1: int, c2: int, year_start: int, year_end: int) -> int:
+        """
+        Calcola il peso dell'arco tra due circuiti:
+        somma dei piloti arrivati al traguardo in entrambi i circuiti nel range.
+        """
+        count1 = self._count_arrivals(c1, year_start, year_end)
+        count2 = self._count_arrivals(c2, year_start, year_end)
+        return count1 + count2
+    
+    def _count_arrivals(self, circuit_id: int, year_start: int, year_end: int) -> int:
+        """
+        Conta il numero di piloti che hanno tagliato il traguardo per un circuito nel range anni.
+        """
+        arrivals = 0
+        circuit = self._circuits_map.get(circuit_id)
+        if circuit is None or circuit.race_results is None:
+            return 0
+        
+        for year, risultati in circuit.race_results.items():
+            if year_start <= year <= year_end:
+                # conto solo quelli con posizione non None
+                arrivals += sum(1 for r in risultati if r.posizione is not None)
+        return arrivals
+
+    def getGraphDetails(self) -> Tuple[int, int]:
+        """Ritorna il numero di nodi e di archi del grafo."""
+        return self._graph.number_of_nodes(), self._graph.number_of_edges()
+
+    def getGraph(self):
+        """Restituisce l'oggetto grafo (networkx)."""
+        return self._graph
+
+    # eventualmente metodi di analisi come quelli per componenti connesse, ordinamento nodi, ecc.
+

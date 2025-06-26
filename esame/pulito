@@ -1,0 +1,559 @@
+def get_all_years():
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor()
+
+    query = "SELECT DISTINCT year FROM races ORDER BY year"
+    cursor.execute(query)
+
+    years = [row[0] for row in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+    return years
+
+
+def get_all_circuits():
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = "SELECT * FROM circuits"
+    cursor.execute(query)
+
+    result = [row for row in cursor]
+    
+    cursor.close()
+    conn.close()
+    return result
+
+
+def get_results_for_circuit_in_range(circuit_id, year_start, year_end):
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+        SELECT ra.year, r.driverId, r.position
+        FROM races ra
+        JOIN results r ON ra.raceId = r.raceId
+        WHERE ra.circuitId = %s AND ra.year BETWEEN %s AND %s AND r.position IS NOT NULL
+        ORDER BY ra.year
+    """
+
+    cursor.execute(query, (circuit_id, year_start, year_end))
+
+    results = [row for row in cursor]
+    
+    cursor.close()
+    conn.close()
+    return results
+
+
+//ARCHI
+def get_circuits_with_race_in_range(year_start, year_end):
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT DISTINCT circuitId
+        FROM races
+        WHERE year BETWEEN %s AND %s
+    """
+    cursor.execute(query, (year_start, year_end))
+    
+    circuit_ids = [row[0] for row in cursor.fetchall()]
+    
+    cursor.close()
+    conn.close()
+    return circuit_ids
+
+
+// contare i piloti arrivati al traguardo
+def get_arrival_counts(circuit_id, year_start, year_end):
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT COUNT(*) as count
+        FROM races ra
+        JOIN results r ON ra.raceId = r.raceId
+        WHERE ra.circuitId = %s AND ra.year BETWEEN %s AND %s AND r.position IS NOT NULL
+    """
+    cursor.execute(query, (circuit_id, year_start, year_end))
+    count = cursor.fetchone()[0]
+
+    cursor.close()
+    conn.close()
+    return count
+
+
+
+// caricamento nodi
+circuits = dao.get_all_circuits()
+circuit_nodes = {}
+
+for row in circuits:
+    c = Circuit(**row)
+    circuit_nodes[c.circuitId] = c
+
+    piazzamenti = dao.get_results_for_circuit_in_range(c.circuitId, anno_da, anno_a)
+
+    # costruisci dizionario anno → lista piazzamenti
+    piazzamenti_per_anno = defaultdict(list)
+    for result in piazzamenti:
+        piazzamenti_per_anno[result['year']].append((result['driverId'], result['position']))
+
+    c.race_results = piazzamenti_per_anno
+
+
+//Costruzione archi del grafo
+graph = {}
+active_circuits = dao.get_circuits_with_race_in_range(anno_da, anno_a)
+
+for c1 in active_circuits:
+    for c2 in active_circuits:
+        if c1 < c2:
+            count1 = dao.get_arrival_counts(c1, anno_da, anno_a)
+            count2 = dao.get_arrival_counts(c2, anno_da, anno_a)
+            peso = count1 + count2
+
+            if peso > 0:
+                graph.setdefault(c1, []).append((c2, peso))
+                graph.setdefault(c2, []).append((c1, peso))
+
+// 3
+def getNumeroNodi(self):
+    return self.grafo.number_of_nodes()
+
+def getNumeroArchi(self):
+    return self.grafo.number_of_edges()
+    
+def getComponenteConnessaMaggiore(self):
+    # Ritorna la lista di nodi della componente più grande
+    componenti = list(nx.connected_components(self.grafo))
+    return max(componenti, key=len)
+
+
+// Ordinare i nodi della componente per peso massimo degli archi incidenti
+
+def getNodiOrdinatiPerPesoMassimo(self, componente):
+    risultati = []
+
+    for nodo in componente:
+        pesi = []
+        for vicino in self.grafo[nodo]:
+            if vicino in componente:
+                peso = self.pesiArchi.get((nodo, vicino)) or self.pesiArchi.get((vicino, nodo), 0)
+                pesi.append(peso)
+        max_peso = max(pesi) if pesi else 0
+        risultati.append((nodo, max_peso))
+
+    # Ordina per peso decrescente
+    risultati.sort(key=lambda x: x[1], reverse=True)
+    return risultati
+
+
+
+
+// RICORSIONE
+
+ES.1 def getKMostUnpredictableCircuits(self, k: int, m: int, anno_inizio: int, anno_fine: int) -> List[Circuit]:
+    component = self.getConnectedComponent()  # Recupera la componente connessa maggiore
+
+    unpredictability_list = []
+
+    for circuito in component:
+        # Filtra solo gli anni nel range specificato
+        relevant_years = [anno for anno in circuito.race_results_per_year if anno_inizio <= anno <= anno_fine]
+
+        if len(relevant_years) >= m:
+            total_nP = 0
+            total_nPtot = 0
+
+            for anno in relevant_years:
+                piazzamenti = circuito.race_results_per_year[anno]
+                nP = sum(1 for r in piazzamenti if r.position is not None)
+                nPtot = len(piazzamenti)
+
+                total_nP += nP
+                total_nPtot += nPtot
+
+            if total_nPtot > 0:
+                imprevedibilita = 1 - (total_nP / total_nPtot)
+                unpredictability_list.append((circuito, imprevedibilita))
+
+    # Ordina per imprevedibilità decrescente
+    unpredictability_list.sort(key=lambda x: x[1], reverse=True)
+
+    # Restituisci i primi K circuiti
+    return [c[0] for c in unpredictability_list[:k]]
+
+
+
+E2
+
+from dataclasses import dataclass
+
+@dataclass
+class RisultatoGara:
+    driver_id: int
+    posizione: Optional[int]  # None se il pilota si è ritirato
+
+from itertools import combinations
+
+def trovaSottoCampionatoEmozionante(self, k: int, m: int):
+    """
+    Trova il sotto-campionato più imprevedibile di K circuiti che hanno corso almeno M volte.
+    """
+    sottoinsiemi_valido = []
+
+    # Filtra i circuiti candidati dalla componente connessa maggiore
+    candidati = [c for c in self.componente_connessa_maggiore if self._count_edizioni(c) >= m]
+
+    if len(candidati) < k:
+        return []
+
+    best_set = None
+    best_imprevedibilita = -1
+
+    for sottoinsieme in combinations(candidati, k):
+        somma_indici = sum(self._calcola_indice_imprevedibilita(c) for c in sottoinsieme)
+
+        if somma_indici > best_imprevedibilita:
+            best_imprevedibilita = somma_indici
+            best_set = sottoinsieme
+
+    return best_set
+def _count_edizioni(self, circuito):
+    return len(circuito.risultati_per_anno)
+
+def _calcola_indice_imprevedibilita(self, circuito):
+    nP = 0
+    nPtot = 0
+
+    for anno, risultati in circuito.risultati_per_anno.items():
+        for r in risultati:
+            nPtot += 1
+            if r.posizione is not None:
+                nP += 1
+
+    if nPtot == 0:
+        return 0  # Nessuna informazione
+    return 1 - (nP / nPtot)
+
+
+
+
+
+
+
+
+
+
+
+
+
+from dataclasses import dataclass
+from collections import defaultdict
+from typing import Optional, List, Tuple
+
+# *********************
+# DATACLASSI PER GLI OGGETTI
+# *********************
+
+@dataclass
+class Circuit:
+    circuitId: int
+    name: str
+    location: str
+    country: str
+    # altri campi se presenti...
+    
+    race_results: dict = None  # dizionario anno -> lista di tuple (driverId, posizione)
+
+@dataclass
+class RisultatoGara:
+    driver_id: int
+    posizione: Optional[int]  # None se il pilota si è ritirato
+
+
+# *********************
+# FUNZIONI DI ACCESSO AL DATABASE
+# *********************
+
+def get_all_years():
+    """
+    Recupera tutti gli anni distinti in cui si sono svolte corse.
+    """
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor()
+
+    query = "SELECT DISTINCT year FROM races ORDER BY year"
+    cursor.execute(query)
+
+    years = [row[0] for row in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+    return years
+
+
+def get_all_circuits():
+    """
+    Recupera tutte le informazioni sui circuiti.
+    """
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = "SELECT * FROM circuits"
+    cursor.execute(query)
+
+    result = [row for row in cursor]
+    
+    cursor.close()
+    conn.close()
+    return result
+
+
+def get_results_for_circuit_in_range(circuit_id, year_start, year_end):
+    """
+    Recupera i risultati delle gare per un circuito in un certo intervallo di anni.
+    """
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = """
+        SELECT ra.year, r.driverId, r.position
+        FROM races ra
+        JOIN results r ON ra.raceId = r.raceId
+        WHERE ra.circuitId = %s AND ra.year BETWEEN %s AND %s AND r.position IS NOT NULL
+        ORDER BY ra.year
+    """
+
+    cursor.execute(query, (circuit_id, year_start, year_end))
+
+    results = [row for row in cursor]
+    
+    cursor.close()
+    conn.close()
+    return results
+
+
+def get_circuits_with_race_in_range(year_start, year_end):
+    """
+    Recupera gli ID dei circuiti che hanno avuto almeno una gara nell'intervallo di anni specificato.
+    """
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT DISTINCT circuitId
+        FROM races
+        WHERE year BETWEEN %s AND %s
+    """
+    cursor.execute(query, (year_start, year_end))
+    
+    circuit_ids = [row[0] for row in cursor.fetchall()]
+    
+    cursor.close()
+    conn.close()
+    return circuit_ids
+
+
+def get_arrival_counts(circuit_id, year_start, year_end):
+    """
+    Conta i piloti arrivati al traguardo (position IS NOT NULL) per un circuito in un intervallo di anni.
+    """
+    conn = DBConnect.get_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT COUNT(*) as count
+        FROM races ra
+        JOIN results r ON ra.raceId = r.raceId
+        WHERE ra.circuitId = %s AND ra.year BETWEEN %s AND %s AND r.position IS NOT NULL
+    """
+    cursor.execute(query, (circuit_id, year_start, year_end))
+    count = cursor.fetchone()[0]
+
+    cursor.close()
+    conn.close()
+    return count
+
+
+# *********************
+# CARICAMENTO DEI NODI (CIRCUITI) CON I RISULTATI
+# *********************
+
+circuits = dao.get_all_circuits()
+circuit_nodes = {}
+
+for row in circuits:
+    c = Circuit(**row)
+    circuit_nodes[c.circuitId] = c
+
+    # Recupera piazzamenti per ogni circuito nell'intervallo di anni
+    piazzamenti = dao.get_results_for_circuit_in_range(c.circuitId, anno_da, anno_a)
+
+    # Costruisce un dizionario anno → lista piazzamenti (driverId, posizione)
+    piazzamenti_per_anno = defaultdict(list)
+    for result in piazzamenti:
+        piazzamenti_per_anno[result['year']].append((result['driverId'], result['position']))
+
+    c.race_results = piazzamenti_per_anno
+
+
+# *********************
+# COSTRUZIONE DEGLI ARCHI DEL GRAFO
+# *********************
+
+graph = {}
+active_circuits = dao.get_circuits_with_race_in_range(anno_da, anno_a)
+
+for c1 in active_circuits:
+    for c2 in active_circuits:
+        if c1 < c2:
+            count1 = dao.get_arrival_counts(c1, anno_da, anno_a)
+            count2 = dao.get_arrival_counts(c2, anno_da, anno_a)
+            peso = count1 + count2
+
+            if peso > 0:
+                graph.setdefault(c1, []).append((c2, peso))
+                graph.setdefault(c2, []).append((c1, peso))
+
+
+# *********************
+# METODI SULLA STRUTTURA DEL GRAFO (Esempio con networkx)
+# *********************
+
+def getNumeroNodi(self):
+    """
+    Ritorna il numero di nodi del grafo.
+    """
+    return self.grafo.number_of_nodes()
+
+def getNumeroArchi(self):
+    """
+    Ritorna il numero di archi del grafo.
+    """
+    return self.grafo.number_of_edges()
+    
+def getComponenteConnessaMaggiore(self):
+    """
+    Ritorna la lista di nodi della componente connessa maggiore del grafo.
+    """
+    componenti = list(nx.connected_components(self.grafo))
+    return max(componenti, key=len)
+
+
+def getNodiOrdinatiPerPesoMassimo(self, componente):
+    """
+    Ordina i nodi della componente secondo il peso massimo degli archi incidenti.
+    """
+    risultati = []
+
+    for nodo in componente:
+        pesi = []
+        for vicino in self.grafo[nodo]:
+            if vicino in componente:
+                peso = self.pesiArchi.get((nodo, vicino)) or self.pesiArchi.get((vicino, nodo), 0)
+                pesi.append(peso)
+        max_peso = max(pesi) if pesi else 0
+        risultati.append((nodo, max_peso))
+
+    # Ordina per peso decrescente
+    risultati.sort(key=lambda x: x[1], reverse=True)
+    return risultati
+
+
+# *********************
+# ESEMPIO DI CALCOLO RICORSIVO / RICERCA CIRCUITI PIU' IMPREVEDIBILI
+# *********************
+
+def getKMostUnpredictableCircuits(self, k: int, m: int, anno_inizio: int, anno_fine: int) -> List[Circuit]:
+    """
+    Restituisce i k circuiti più imprevedibili con almeno m gare nel range di anni.
+    """
+    component = self.getConnectedComponent()  # Recupera la componente connessa maggiore
+
+    unpredictability_list = []
+
+    for circuito in component:
+        # Filtra solo gli anni nel range specificato
+        relevant_years = [anno for anno in circuito.race_results_per_year if anno_inizio <= anno <= anno_fine]
+
+        if len(relevant_years) >= m:
+            total_nP = 0
+            total_nPtot = 0
+
+            for anno in relevant_years:
+                piazzamenti = circuito.race_results_per_year[anno]
+                nP = sum(1 for r in piazzamenti if r.position is not None)
+                nPtot = len(piazzamenti)
+
+                total_nP += nP
+                total_nPtot += nPtot
+
+            if total_nPtot > 0:
+                imprevedibilita = 1 - (total_nP / total_nPtot)
+                unpredictability_list.append((circuito, imprevedibilita))
+
+    # Ordina per imprevedibilità decrescente
+    unpredictability_list.sort(key=lambda x: x[1], reverse=True)
+
+    # Restituisce i primi k circuiti
+    return [c[0] for c in unpredictability_list[:k]]
+
+
+# *********************
+# ESEMPIO DI RICERCA SOTTO-CAMPIONATO EMOZIONANTE (con combinazioni)
+# *********************
+
+from itertools import combinations
+
+def trovaSottoCampionatoEmozionante(self, k: int, m: int):
+    """
+    Trova il sotto-campionato più imprevedibile di K circuiti con almeno M edizioni.
+    """
+    # Filtra i circuiti candidati dalla componente connessa maggiore
+    candidati = [c for c in self.componente_connessa_maggiore if self._count_edizioni(c) >= m]
+
+    if len(candidati) < k:
+        return []
+
+    best_set = None
+    best_imprevedibilita = -1
+
+    for sottoinsieme in combinations(candidati, k):
+        somma_indici = sum(self._calcola_indice_imprevedibilita(c) for c in sottoinsieme)
+
+        if somma_indici > best_imprevedibilita:
+            best_imprevedibilita = somma_indici
+            best_set = sottoinsieme
+
+    return best_set
+
+
+def _count_edizioni(self, circuito):
+    """
+    Conta il numero di edizioni (anni con risultati) di un circuito.
+    """
+    return len(circuito.risultati_per_anno)
+
+
+def _calcola_indice_imprevedibilita(self, circuito):
+    """
+    Calcola l'indice di imprevedibilità di un circuito.
+    """
+    nP = 0
+    nPtot = 0
+
+    for anno, risultati in circuito.risultati_per_anno.items():
+        for r in risultati:
+            nPtot += 1
+            if r.posizione is not None:
+                nP += 1
+
+    if nPtot == 0:
+        return 0  # Nessuna informazione
+    return 1 - (nP / nPtot)
+
+

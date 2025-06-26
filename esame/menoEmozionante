@@ -1,0 +1,69 @@
+from itertools import combinations
+import copy
+
+class Model:
+    # ... altri metodi ...
+
+    def findLeastExcitingSubchampionship(self, k: int, m: int, year_start: int, year_end: int):
+        """
+        Trova il sotto-campionato meno emozionante (più prevedibile) formato da K circuiti
+        che abbiano ospitato almeno M edizioni nel range indicato.
+        """
+        # 1. Candidati: circuiti nella componente connessa maggiore
+        largest_cc = self._get_largest_connected_component()
+        candidati = [cid for cid in largest_cc if self._count_editions(cid, year_start, year_end) >= m]
+
+        if len(candidati) < k:
+            return []
+
+        best_set = None
+        lowest_unpredictability = float("inf")
+
+        for subset in combinations(candidati, k):
+            total_index = sum(self._calculate_unpredictability_index(cid, year_start, year_end) for cid in subset)
+
+            if total_index < lowest_unpredictability:
+                lowest_unpredictability = total_index
+                best_set = copy.deepcopy(subset)
+
+        return [self._circuits_map[cid] for cid in best_set] if best_set else []
+
+    def _get_largest_connected_component(self):
+        """
+        Restituisce l'insieme dei nodi della componente connessa maggiore.
+        """
+        components = list(nx.connected_components(self._graph))
+        return max(components, key=len)
+
+    def _count_editions(self, circuit_id: int, year_start: int, year_end: int) -> int:
+        """
+        Conta il numero di edizioni disputate da un circuito nel range anni.
+        """
+        circuit = self._circuits_map.get(circuit_id)
+        if not circuit or not circuit.race_results:
+            return 0
+        return sum(1 for year in circuit.race_results if year_start <= year <= year_end)
+
+    def _calculate_unpredictability_index(self, circuit_id: int, year_start: int, year_end: int) -> float:
+        """
+        Calcola l'indice di imprevedibilità: 1 - (nP / nPtot)
+        dove nP = piloti arrivati, nPtot = partecipanti.
+        """
+        circuit = self._circuits_map.get(circuit_id)
+        if not circuit or not circuit.race_results:
+            return 1.0  # massimo di imprevedibilità se non ho dati
+
+        nP = 0
+        nPtot = 0
+
+        for year, results in circuit.race_results.items():
+            if year_start <= year <= year_end:
+                for r in results:
+                    nPtot += 1
+                    if r.posizione is not None:
+                        nP += 1
+
+        if nPtot == 0:
+            return 1.0
+        return 1 - (nP / nPtot)
+        

@@ -1,0 +1,195 @@
+SELECT DISTINCT c.circuitId, c.name
+FROM races r
+JOIN circuits c ON r.circuitId = c.circuitId;
+
+
+
+from dataclasses import dataclass, field
+from typing import List, Dict, Any
+
+@dataclass
+class Circuit:
+    circuitId: int
+    circuitRef: str
+    name: str
+    location: str
+    country: str
+    lat: float
+    lng: float
+    alt: float
+    url: str
+
+    # Nuovo campo: lista dei risultati
+    race_results: List[Dict[str, Any]] = field(default_factory=list)
+
+    def __hash__(self):
+        return hash(self.circuitId)
+
+    def __str__(self):
+        return f"{self.name} – {self.location}, {self.country}"
+
+
+
+  1️⃣ Query per ottenere i circuiti attivi nel range di anni
+
+SELECT DISTINCT c.*
+FROM circuits c
+JOIN races r ON c.circuitId = r.circuitId
+WHERE r.year BETWEEN ? AND ?;
+
+
+2️⃣ Query per ottenere i piazzamenti per ciascun circuito
+Eseguita una volta per circuito (in un ciclo Python):
+
+SELECT ra.year, res.driverId, res.position
+FROM races ra
+JOIN results res ON ra.raceId = res.raceId
+WHERE ra.circuitId = ? AND ra.year BETWEEN ? AND ?;
+
+
+
+
+
+
+from dataclasses import dataclass, field
+from typing import Dict, List
+
+@dataclass
+class Placement:
+    driverId: int
+    position: int  # attenzione: potrebbe essere NULL → gestire in fase di parsing
+
+@dataclass
+class Circuit:
+    circuitId: int
+    circuitRef: str
+    name: str
+    location: str
+    country: str
+    lat: float
+    lng: float
+    alt: float
+    url: str
+
+    # Nuovo campo: mappa {anno → lista di piazzamenti}
+    results_by_year: Dict[int, List[Placement]] = field(default_factory=dict)
+
+    def __hash__(self):
+        return hash(self.circuitId)
+
+    def __str__(self):
+        return f"{self.name} – {self.location}, {self.country}"
+
+
+
+
+
+# Costruzione oggetti Circuit (da prima query)
+circuit_map = {}
+
+for row in circuit_rows:
+    circuit = Circuit(**row)
+    circuit_map[circuit.circuitId] = circuit
+
+# Per ogni circuito, carica i piazzamenti (seconda query)
+for circuit in circuit_map.values():
+    cursor.execute("""
+        SELECT ra.year, res.driverId, res.position
+        FROM races ra
+        JOIN results res ON ra.raceId = res.raceId
+        WHERE ra.circuitId = ? AND ra.year BETWEEN ? AND ?
+    """, (circuit.circuitId, year_start, year_end))
+
+    for year, driverId, position in cursor.fetchall():
+        if year not in circuit.results_by_year:
+            circuit.results_by_year[year] = []
+        if position is not None:  # evitiamo valori null
+            circuit.results_by_year[year].append(Placement(driverId, int(position)))
+
+
+// ARCHI
+Query: conteggio piloti per circuito e anno (solo quelli che hanno concluso)
+
+SELECT ra.circuitId, ra.year, COUNT(*) AS finisher_count
+FROM races ra
+JOIN results r ON ra.raceId = r.raceId
+WHERE ra.year BETWEEN ? AND ? AND r.position IS NOT NULL
+GROUP BY ra.circuitId, ra.year;
+
+
+
+
+{
+  "nodes": [
+    { "id": 1, "name": "Monza", "country": "Italy" },
+    { "id": 2, "name": "Silverstone", "country": "UK" },
+    ...
+  ],
+  "edges": [
+    { "from": 1, "to": 2, "weight": 52 },
+    { "from": 1, "to": 3, "weight": 61 },
+    ...
+  ]
+}
+
+
+
+
+
+// 3
+2. Trova la componente connessa più grande
+python
+Copia
+Modifica
+def dfs(start, visited, graph):
+    stack = [start]
+    component = []
+    while stack:
+        node = stack.pop()
+        if node not in visited:
+            visited.add(node)
+            component.append(node)
+            for neighbor, _ in graph[node]:
+                stack.append(neighbor)
+    return component
+
+# Trova tutte le componenti
+visited = set()
+components = []
+
+for node in graph:
+    if node not in visited:
+        comp = dfs(node, visited, graph)
+        components.append(comp)
+
+# Componente più grande
+largest_component = max(components, key=len)
+🔹 3. Calcola peso massimo degli archi incidenti per ciascun nodo
+python
+Copia
+Modifica
+node_weights = {}
+for node in largest_component:
+    max_weight = max(weight for _, weight in graph[node]) if graph[node] else 0
+    node_weights[node] = max_weight
+🔹 4. Ordina e stampa i nodi
+python
+Copia
+Modifica
+sorted_nodes = sorted(largest_component, key=lambda n: node_weights[n], reverse=True)
+
+print("Nodi nella componente più grande (ordinati per peso massimo incidente):")
+for node in sorted_nodes:
+    print(f"Circuito {node} – peso max: {node_weights[node]}")
+📌 Output esempio
+yaml
+Copia
+Modifica
+Numero di nodi: 18
+Numero di archi: 22
+
+Nodi nella componente più grande (ordinati per peso massimo incidente):
+Circuito 12 – peso max: 24
+Circuito 5 – peso max: 22
+Circuito 7 – peso max: 20
+...

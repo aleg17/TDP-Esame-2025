@@ -1,3 +1,25 @@
+    def handle_grafo(self, e):
+        year1 = self._view.dd_year1.value
+        if year1 is None:
+            self._view.create_alert("Selezionare un anno di inizio.")
+            return
+        year2 = self._view.dd_year2.value
+        if anno is None:
+            self._view.create_alert("Selezionare un anno di fine.")
+            return
+        grafo = self._model.creaGrafo(int(year1), int(year2))
+        self._view.txt_result.controls.append(ft.Text("Grafo correttamente creato."))
+        self._view.txt_result.controls.append(ft.Text(f"Il grafo contiene "
+                                                      f"{self._model.getNumNodes()} nodi e {self._model.getNumEdges()} archi."))
+        self._view.update_page()
+
+
+    def handleStampaDettagli(self, e):
+            
+
+
+
+
 
 //VALIDAZIONE CAMPI:
 
